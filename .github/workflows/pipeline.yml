@@ -75,33 +75,33 @@ jobs:
           name: coverage-report
           path: coverage.xml
 
-  build:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+build:
+  needs: test
+  runs-on: ubuntu-latest
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
-      - name: Build API image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./api
-          push: false
-          tags: ${{ env.REGISTRY }}/api:${{ github.sha }}
+    - name: Build API image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./api
+        push: false
+        tags: ${{ env.REGISTRY }}/api:${{ github.sha }}
 
-      - name: Build API image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./api
-          push: false
-          tags: ${{ env.REGISTRY }}/api:${{ github.sha }}
+    - name: Build Worker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./worker
+        push: false
+        tags: ${{ env.REGISTRY }}/worker:${{ github.sha }}
 
-      - name: Build API image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./api
-          push: false
-          tags: ${{ env.REGISTRY }}/api:${{ github.sha }}
+    - name: Build Frontend image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./frontend
+        push: false
+        tags: ${{ env.REGISTRY }}/frontend:${{ github.sha }}
 
   security:
     needs: build
