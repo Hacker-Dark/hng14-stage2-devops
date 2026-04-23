@@ -6,7 +6,8 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 FROM python:3.11-slim
 WORKDIR /app
 
-RUN useradd -m appuser
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+USER appuser
 
 COPY --from=builder /root/.local /home/appuser/.local
 COPY . .
