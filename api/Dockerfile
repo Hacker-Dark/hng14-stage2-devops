@@ -12,7 +12,7 @@ USER appuser
 COPY --from=builder /root/.local /home/appuser/.local
 COPY . .
 
-RUN chown -R appuser:appuser /app
+RUN chown -R appuser:appgroup /app
 
 USER appuser
 
