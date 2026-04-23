@@ -80,22 +80,22 @@ jobs:
 
 
   security:
-  needs: build
-  runs-on: ubuntu-latest
-  steps:
-    - uses: actions/checkout@v3
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
 
-    - run: |
-        docker build -t $REGISTRY/api:latest ./api
-        docker build -t $REGISTRY/worker:latest ./worker
-        docker build -t $REGISTRY/frontend:latest ./frontend
+      - run: |
+          docker build -t $REGISTRY/api:latest ./api
+          docker build -t $REGISTRY/worker:latest ./worker
+          docker build -t $REGISTRY/frontend:latest ./frontend
 
-    - run: |
-        curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+      - run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
 
-    - run: trivy image --exit-code 1 --severity CRITICAL --ignore-unfixed $REGISTRY/api:latest
-    - run: trivy image --exit-code 1 --severity CRITICAL --ignore-unfixed $REGISTRY/worker:latest
-    - run: trivy image --exit-code 1 --severity CRITICAL --ignore-unfixed $REGISTRY/frontend:latest
+      - run: trivy image --exit-code 1 --severity CRITICAL --ignore-unfixed $REGISTRY/api:latest
+      - run: trivy image --exit-code 1 --severity CRITICAL --ignore-unfixed $REGISTRY/worker:latest
+      - run: trivy image --exit-code 1 --severity CRITICAL --ignore-unfixed $REGISTRY/frontend:latest
 
   integration-test
     needs: security
