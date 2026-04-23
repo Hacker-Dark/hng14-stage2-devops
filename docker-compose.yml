@@ -26,8 +26,8 @@ services:
     networks:
       - internal
     environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
+      - REDIS_HOST=${REDIS_HOST}
+      - PORT=${PORT}
     depends_on:
       redis:
         condition: service_healthy
@@ -49,8 +49,8 @@ services:
     networks:
       - internal
     environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
+      - REDIS_HOST=${REDIS_HOST}
+      - PORT=${PORT}
     depends_on:
       redis:
         condition: service_healthy

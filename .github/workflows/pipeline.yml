@@ -5,11 +5,15 @@ on:
     branches: [main]
   pull_request:
 
+env:
+  REGISTRY: localhost:5000
+
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -29,12 +33,10 @@ jobs:
         with:
           node-version: "18"
 
-      - name: Install JS linter
+      - name: Install frontend dependencies
         run: |
           cd frontend
           npm install
-          npx eslint --init || true
-          npm install eslint --save-dev
 
       - name: Lint JavaScript files
         run: |
@@ -51,7 +53,8 @@ jobs:
     needs: lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -75,50 +78,49 @@ jobs:
   build:
     needs: test
     runs-on: ubuntu-latest
-    services:
-      registry:
-        image: registry:2
-        ports:
-          - 5000:5000
-
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-      - name: Build and push API image
-        run: |
-          docker build -t localhost:5000/api:${{ github.sha }} -t localhost:5000/api:latest ./api
-          docker push localhost:5000/api:${{ github.sha }}
-          docker push localhost:5000/api:latest
+      - name: Build API image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./api
+          push: false
+          tags: ${{ env.REGISTRY }}/api:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Build and push worker image
-        run: |
-          docker build -t localhost:5000/worker:${{ github.sha }} -t localhost:5000/worker:latest ./worker
-          docker push localhost:5000/worker:${{ github.sha }}
-          docker push localhost:5000/worker:latest
+      - name: Build worker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./worker
+          push: false
+          tags: ${{ env.REGISTRY }}/worker:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Build and push frontend image
-        run: |
-          docker build -t localhost:5000/frontend:${{ github.sha }} -t localhost:5000/frontend:latest ./frontend
-          docker push localhost:5000/frontend:${{ github.sha }}
-          docker push localhost:5000/frontend:latest
+      - name: Build frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: false
+          tags: ${{ env.REGISTRY }}/frontend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   security:
     needs: build
     runs-on: ubuntu-latest
-    services:
-      registry:
-        image: registry:2
-        ports:
-          - 5000:5000
-
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
       - name: Rebuild images for scanning
         run: |
-          docker build -t localhost:5000/api:latest ./api
-          docker build -t localhost:5000/worker:latest ./worker
-          docker build -t localhost:5000/frontend:latest ./frontend
+          docker build -t $REGISTRY/api:latest ./api
+          docker build -t $REGISTRY/worker:latest ./worker
+          docker build -t $REGISTRY/frontend:latest ./frontend
 
       - name: Install Trivy
         run: |
@@ -128,19 +130,19 @@ jobs:
         run: |
           trivy image --exit-code 1 --severity CRITICAL \
             --format sarif --output trivy-api.sarif \
-            localhost:5000/api:latest || true
+            $REGISTRY/api:latest
 
       - name: Scan worker image
         run: |
           trivy image --exit-code 1 --severity CRITICAL \
             --format sarif --output trivy-worker.sarif \
-            localhost:5000/worker:latest || true
+            $REGISTRY/worker:latest
 
       - name: Scan frontend image
         run: |
           trivy image --exit-code 1 --severity CRITICAL \
             --format sarif --output trivy-frontend.sarif \
-            localhost:5000/frontend:latest || true
+            $REGISTRY/frontend:latest
 
       - name: Upload Trivy results
         uses: actions/upload-artifact@v3
@@ -152,40 +154,41 @@ jobs:
     needs: security
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
       - name: Start full stack
-        run: |
-          docker compose up -d --build
+        run: docker compose up -d --build
 
-      - name: Wait for services to be healthy
+      - name: Wait for API health check
         run: |
-          echo "Waiting for services..."
-          sleep 30
+          for i in $(seq 1 10); do
+            curl -f http://localhost:3000/health && break
+            sleep 5
+          done
 
-      - name: Submit a job and verify completion
+      - name: Submit job and verify completion
         run: |
-          # Submit job
           RESPONSE=$(curl -s -X POST http://localhost:3000/submit \
             -H "Content-Type: application/json")
+
           echo "Response: $RESPONSE"
 
           JOB_ID=$(echo $RESPONSE | python3 -c "import sys,json; print(json.load(sys.stdin)['job_id'])")
-          echo "Job ID: $JOB_ID"
 
-          # Poll until completed (max 60 seconds)
           for i in $(seq 1 20); do
             STATUS=$(curl -s http://localhost:3000/status/$JOB_ID | \
               python3 -c "import sys,json; print(json.load(sys.stdin)['status'])")
+
             echo "Attempt $i - Status: $STATUS"
+
             if [ "$STATUS" = "completed" ]; then
-              echo "Job completed successfully"
               exit 0
             fi
+
             sleep 3
           done
 
-          echo "Job never completed"
           exit 1
 
       - name: Tear down stack
@@ -196,32 +199,31 @@ jobs:
     needs: integration-test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
+
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
       - name: Rolling deploy
         run: |
-          # Build new images
           docker compose build
 
-          # Start new api container
           docker compose up -d --no-deps --build api
 
-          # Wait for health check to pass (max 60 seconds)
           for i in $(seq 1 12); do
             STATUS=$(docker inspect \
               --format='{{.State.Health.Status}}' \
               $(docker compose ps -q api) 2>/dev/null || echo "starting")
+
             echo "Health check attempt $i: $STATUS"
+
             if [ "$STATUS" = "healthy" ]; then
-              echo "Deploy successful"
-              # Now update remaining services
               docker compose up -d --no-deps --build worker
               docker compose up -d --no-deps --build frontend
               exit 0
             fi
+
             sleep 5
           done
 
-          echo "Health check failed — aborting deploy, keeping old container"
           exit 1

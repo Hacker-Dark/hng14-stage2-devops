@@ -31,3 +31,21 @@ def get_job(job_id: str):
     if not status:
         raise HTTPException(status_code=404, detail="Job not found")
     return {"job_id": job_id, "status": status.decode()}
+
+# api/tests/test_main.py
+from app import app
+
+def test_home():
+    client = app.test_client()
+    res = client.get("/")
+    assert res.status_code == 200
+
+def test_health():
+    client = app.test_client()
+    res = client.get("/health")
+    assert res.status_code == 200
+
+def test_json():
+    client = app.test_client()
+    res = client.get("/")
+    assert res.is_json
