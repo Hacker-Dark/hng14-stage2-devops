@@ -13,10 +13,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
       - uses: actions/setup-python@v4
         with:
           python-version: "3.11"
+
       - run: pip install flake8
+
       - run: flake8 api/main.py worker/worker.py --max-line-length=100
 
       - uses: actions/setup-node@v3
@@ -26,23 +29,26 @@ jobs:
       - run: |
           cd frontend
           npm install
-          npx eslint app.js || true
+          npx eslint app.js --rule '{"no-unused-vars":"warn"}' || true
 
-      - name: Hadolint
-        run: |
+      - run: |
           docker run --rm -i hadolint/hadolint < api/Dockerfile
           docker run --rm -i hadolint/hadolint < worker/Dockerfile
           docker run --rm -i hadolint/hadolint < frontend/Dockerfile
+
 
   test:
     needs: lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
       - uses: actions/setup-python@v4
         with:
           python-version: "3.11"
+
       - run: pip install fastapi uvicorn redis pytest pytest-cov httpx
+
       - run: PYTHONPATH=. pytest api/tests/
 
   build:
@@ -72,6 +78,7 @@ jobs:
           push: false
           tags: ${{ env.REGISTRY }}/frontend:${{ github.sha }}
 
+
   security:
     needs: build
     runs-on: ubuntu-latest
@@ -84,25 +91,32 @@ jobs:
           docker build -t $REGISTRY/frontend:latest ./frontend
 
       - run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
-          | sh -s -- -b /usr/local/bin
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
 
       - run: trivy image --exit-code 1 --severity CRITICAL $REGISTRY/api:latest
       - run: trivy image --exit-code 1 --severity CRITICAL $REGISTRY/worker:latest
       - run: trivy image --exit-code 1 --severity CRITICAL $REGISTRY/frontend:latest
+
 
   integration-test:
     needs: security
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
       - run: docker compose up -d --build
+
+      - run: |
+          curl -f http://localhost:3000/health || exit 1
+
       - run: docker compose down
+
 
   deploy:
     needs: integration-test
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v3
+
       - run: docker compose build
