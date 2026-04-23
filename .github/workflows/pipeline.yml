@@ -110,7 +110,7 @@ jobs:
       - run: sleep 5  # Give services time to fully initialize
       
       - run: |
-          - run: curl -f http://localhost:3000 || exit 1
+          curl -f http://localhost:3000 || exit 1
 
       - run: docker compose down
 
