@@ -6,13 +6,10 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 FROM python:3.11-slim
 WORKDIR /app
 
-RUN groupadd -r appgroup && useradd -r -g appgroup appuser
-USER appuser
+RUN useradd -m appuser
 
-COPY --from=builder /root/.local /home/appuser/.local
-COPY . .
-
-RUN chown -R appuser:appgroup /app
+COPY --from=builder --chown=appuser:appuser /root/.local /home/appuser/.local
+COPY --chown=appuser:appuser . .
 
 USER appuser
 

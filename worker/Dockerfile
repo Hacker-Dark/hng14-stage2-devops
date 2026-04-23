@@ -8,10 +8,8 @@ WORKDIR /app
 
 RUN useradd -m appuser
 
-COPY --from=builder /root/.local /home/appuser/.local
-COPY . .
-
-RUN chown -R appuser:appgroup /app
+COPY --from=builder --chown=appuser:appuser /root/.local /home/appuser/.local
+COPY --chown=appuser:appuser . .
 
 USER appuser
 
