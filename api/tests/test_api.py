@@ -58,3 +58,21 @@ def test_create_job_calls_redis():
         client.post("/jobs")
         assert mock_redis.lpush.called
         assert mock_redis.hset.called
+
+# api/tests/test_api.py
+from app import app
+
+def test_home():
+    client = app.test_client()
+    res = client.get("/")
+    assert res.status_code == 200
+
+def test_health():
+    client = app.test_client()
+    res = client.get("/health")
+    assert res.status_code == 200
+
+def test_json():
+    client = app.test_client()
+    res = client.get("/")
+    assert res.is_json
