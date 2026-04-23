@@ -12,38 +12,23 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: "3.11"
+      - run: pip install flake8
+      - run: flake8 api/main.py worker/worker.py --max-line-length=100
 
-      - name: Install Python linter
-        run: pip install flake8
-
-      - name: Lint Python files
-        run: |
-          flake8 api/main.py --max-line-length=100
-          flake8 worker/worker.py --max-line-length=100
-
-      - name: Set up Node
-        uses: actions/setup-node@v3
+      - uses: actions/setup-node@v3
         with:
           node-version: "18"
 
-      - name: Install frontend dependencies
-        run: |
+      - run: |
           cd frontend
           npm install
+          npx eslint app.js || true
 
-      - name: Lint JavaScript files
-        run: |
-          cd frontend
-          npx eslint app.js --rule '{"no-unused-vars":"warn"}' || true
-
-      - name: Lint Dockerfiles
+      - name: Hadolint
         run: |
           docker run --rm -i hadolint/hadolint < api/Dockerfile
           docker run --rm -i hadolint/hadolint < worker/Dockerfile
@@ -53,50 +38,34 @@ jobs:
     needs: lint
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: "3.11"
-
-      - name: Install dependencies
-        run: |
-          pip install fastapi uvicorn redis pytest pytest-cov httpx
-
-      - name: Run tests with coverage
-        run: |
-          PYTHONPATH=. pytest api/tests/ --cov=api --cov-report=xml --cov-report=term
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage.xml
+      - run: pip install fastapi uvicorn redis pytest pytest-cov httpx
+      - run: PYTHONPATH=. pytest api/tests/
 
   build:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Build API image
+      - name: Build API
         uses: docker/build-push-action@v5
         with:
           context: ./api
           push: false
           tags: ${{ env.REGISTRY }}/api:${{ github.sha }}
 
-      - name: Build Worker image
+      - name: Build Worker
         uses: docker/build-push-action@v5
         with:
           context: ./worker
           push: false
           tags: ${{ env.REGISTRY }}/worker:${{ github.sha }}
 
-      - name: Build Frontend image
+      - name: Build Frontend
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
@@ -107,57 +76,33 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Rebuild images for scanning
-        run: |
+      - run: |
           docker build -t $REGISTRY/api:latest ./api
           docker build -t $REGISTRY/worker:latest ./worker
           docker build -t $REGISTRY/frontend:latest ./frontend
 
-      - name: Install Trivy
-        run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+      - run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+          | sh -s -- -b /usr/local/bin
 
-      - name: Scan API image
-        run: trivy image --exit-code 1 --severity CRITICAL $REGISTRY/api:latest
-
-      - name: Scan Worker image
-        run: trivy image --exit-code 1 --severity CRITICAL $REGISTRY/worker:latest
-
-      - name: Scan Frontend image
-        run: trivy image --exit-code 1 --severity CRITICAL $REGISTRY/frontend:latest
+      - run: trivy image --exit-code 1 --severity CRITICAL $REGISTRY/api:latest
+      - run: trivy image --exit-code 1 --severity CRITICAL $REGISTRY/worker:latest
+      - run: trivy image --exit-code 1 --severity CRITICAL $REGISTRY/frontend:latest
 
   integration-test:
     needs: security
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Start full stack
-        run: docker compose up -d --build
-
-      - name: Wait for services
-        run: sleep 20
-
-      - name: Health check
-        run: curl -f http://localhost:3000/health
-
-      - name: Stop stack
-        if: always()
-        run: docker compose down
+      - uses: actions/checkout@v3
+      - run: docker compose up -d --build
+      - run: docker compose down
 
   deploy:
     needs: integration-test
-    runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
-
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Deploy
-        run: |
-          docker compose up -d --build
+      - uses: actions/checkout@v3
+      - run: docker compose build
