@@ -51,6 +51,7 @@ jobs:
 
       - run: PYTHONPATH=. pytest api/tests/
 
+
   build:
     needs: test
     runs-on: ubuntu-latest
@@ -97,7 +98,8 @@ jobs:
       - run: trivy image --exit-code 1 --severity CRITICAL --ignore-unfixed $REGISTRY/worker:latest
       - run: trivy image --exit-code 1 --severity CRITICAL --ignore-unfixed $REGISTRY/frontend:latest
 
-  integration-test
+
+  integration-test:
     needs: security
     runs-on: ubuntu-latest
     steps:
