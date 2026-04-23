@@ -1,14 +1,14 @@
 from fastapi.testclient import TestClient
 from api.main import app
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 client = TestClient(app)
 
 
-def test_health_endpoint():
-    response = client.get("/health")
-    assert response.status_code == 200
-    assert response.json() == {"status": "healthy"}
+def test_health():
+    res = client.get("/health")
+    assert res.status_code == 200
+    assert res.json() == {"status": "healthy"}
 
 
 def test_create_job():
@@ -16,26 +16,26 @@ def test_create_job():
         mock_redis.lpush = MagicMock()
         mock_redis.hset = MagicMock()
 
-        response = client.post("/jobs")
+        res = client.post("/jobs")
 
-        assert response.status_code == 200
-        assert "job_id" in response.json()
+        assert res.status_code == 200
+        assert "job_id" in res.json()
 
 
-def test_get_job_completed():
+def test_get_job():
     with patch("api.main.r") as mock_redis:
-        mock_redis.hget = MagicMock(return_value=b"completed")
+        mock_redis.hget = MagicMock(return_value="completed")
 
-        response = client.get("/jobs/test-id")
+        res = client.get("/jobs/test123")
 
-        assert response.status_code == 200
-        assert response.json()["status"] == "completed"
+        assert res.status_code == 200
+        assert res.json()["status"] == "completed"
 
 
 def test_get_job_not_found():
     with patch("api.main.r") as mock_redis:
         mock_redis.hget = MagicMock(return_value=None)
 
-        response = client.get("/jobs/unknown")
+        res = client.get("/jobs/test123")
 
-        assert response.status_code == 404
+        assert res.status_code == 404
