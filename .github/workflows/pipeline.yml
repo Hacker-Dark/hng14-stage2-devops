@@ -107,6 +107,8 @@ jobs:
 
       - run: docker compose up -d --build
 
+      - run: sleep 5  # Give services time to fully initialize
+      
       - run: |
           curl -f http://localhost:3000/health || exit 1
 
