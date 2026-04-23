@@ -66,6 +66,8 @@ jobs:
           pip install fastapi uvicorn redis pytest pytest-cov httpx
 
       - name: Run tests with coverage
+        env:
+          PYTHONPATH: .
         run: |
           pytest api/tests/ --cov=api --cov-report=xml --cov-report=term
 
