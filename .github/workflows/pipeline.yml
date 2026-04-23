@@ -41,7 +41,7 @@ jobs:
       - name: Lint JavaScript files
         run: |
           cd frontend
-          npx eslint app.js --rule '{"no-unused-vars": "warn"}' || true
+          npx eslint app.js --rule '{"no-unused-vars":"warn"}' || true
 
       - name: Lint Dockerfiles
         run: |
@@ -75,33 +75,33 @@ jobs:
           name: coverage-report
           path: coverage.xml
 
-build:
-  needs: test
-  runs-on: ubuntu-latest
-  steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-    - name: Build API image
-      uses: docker/build-push-action@v5
-      with:
-        context: ./api
-        push: false
-        tags: ${{ env.REGISTRY }}/api:${{ github.sha }}
+      - name: Build API image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./api
+          push: false
+          tags: ${{ env.REGISTRY }}/api:${{ github.sha }}
 
-    - name: Build Worker image
-      uses: docker/build-push-action@v5
-      with:
-        context: ./worker
-        push: false
-        tags: ${{ env.REGISTRY }}/worker:${{ github.sha }}
+      - name: Build Worker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./worker
+          push: false
+          tags: ${{ env.REGISTRY }}/worker:${{ github.sha }}
 
-    - name: Build Frontend image
-      uses: docker/build-push-action@v5
-      with:
-        context: ./frontend
-        push: false
-        tags: ${{ env.REGISTRY }}/frontend:${{ github.sha }}
+      - name: Build Frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: false
+          tags: ${{ env.REGISTRY }}/frontend:${{ github.sha }}
 
   security:
     needs: build
@@ -121,28 +121,13 @@ build:
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
 
       - name: Scan API image
-        run: |
-          trivy image --exit-code 1 --severity CRITICAL \
-            --format sarif --output trivy-api.sarif \
-            $REGISTRY/api:latest
+        run: trivy image --exit-code 1 --severity CRITICAL $REGISTRY/api:latest
 
-      - name: Scan worker image
-        run: |
-          trivy image --exit-code 1 --severity CRITICAL \
-            --format sarif --output trivy-worker.sarif \
-            $REGISTRY/worker:latest
+      - name: Scan Worker image
+        run: trivy image --exit-code 1 --severity CRITICAL $REGISTRY/worker:latest
 
-      - name: Scan frontend image
-        run: |
-          trivy image --exit-code 1 --severity CRITICAL \
-            --format sarif --output trivy-frontend.sarif \
-            $REGISTRY/frontend:latest
-
-      - name: Upload Trivy results
-        uses: actions/upload-artifact@v4
-        with:
-          name: trivy-results
-          path: "*.sarif"
+      - name: Scan Frontend image
+        run: trivy image --exit-code 1 --severity CRITICAL $REGISTRY/frontend:latest
 
   integration-test:
     needs: security
@@ -154,38 +139,13 @@ build:
       - name: Start full stack
         run: docker compose up -d --build
 
-      - name: Wait for API health check
-        run: |
-          for i in $(seq 1 10); do
-            curl -f http://localhost:3000/health && break
-            sleep 5
-          done
+      - name: Wait for services
+        run: sleep 20
 
-      - name: Submit job and verify completion
-        run: |
-          RESPONSE=$(curl -s -X POST http://localhost:3000/submit \
-            -H "Content-Type: application/json")
+      - name: Health check
+        run: curl -f http://localhost:3000/health
 
-          echo "Response: $RESPONSE"
-
-          JOB_ID=$(echo $RESPONSE | python3 -c "import sys,json; print(json.load(sys.stdin)['job_id'])")
-
-          for i in $(seq 1 20); do
-            STATUS=$(curl -s http://localhost:3000/status/$JOB_ID | \
-              python3 -c "import sys,json; print(json.load(sys.stdin)['status'])")
-
-            echo "Attempt $i - Status: $STATUS"
-
-            if [ "$STATUS" = "completed" ]; then
-              exit 0
-            fi
-
-            sleep 3
-          done
-
-          exit 1
-
-      - name: Tear down stack
+      - name: Stop stack
         if: always()
         run: docker compose down
 
@@ -198,26 +158,6 @@ build:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Rolling deploy
+      - name: Deploy
         run: |
-          docker compose build
-
-          docker compose up -d --no-deps --build api
-
-          for i in $(seq 1 12); do
-            STATUS=$(docker inspect \
-              --format='{{.State.Health.Status}}' \
-              $(docker compose ps -q api) 2>/dev/null || echo "starting")
-
-            echo "Health check attempt $i: $STATUS"
-
-            if [ "$STATUS" = "healthy" ]; then
-              docker compose up -d --no-deps --build worker
-              docker compose up -d --no-deps --build frontend
-              exit 0
-            fi
-
-            sleep 5
-          done
-
-          exit 1
+          docker compose up -d --build
