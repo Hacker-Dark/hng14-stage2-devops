@@ -28,8 +28,8 @@ services:
     networks:
       - internal
     environment:
-      - REDIS_HOST=${REDIS_HOST}
-      - PORT=${PORT}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - PORT=${PORT:-8000}
     depends_on:
       redis:
         condition: service_healthy
@@ -51,8 +51,8 @@ services:
     networks:
       - internal
     environment:
-      - REDIS_HOST=${REDIS_HOST}
-      - PORT=${PORT}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - PORT=${PORT:-8000}
     depends_on:
       redis:
         condition: service_healthy
